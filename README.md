@@ -15,7 +15,7 @@ becomes:
 
 
 	/** \brief (You fill in this part)
-	*\param bar (char *)
+	* \param bar (char *)
 	* \return int
 	* \details 
 	*/
