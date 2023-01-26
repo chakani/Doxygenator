@@ -1,5 +1,7 @@
 # Doxygenator
-Automatically inserts Doxygen comment blocks before functions. The Doxygen commands are a template or skeleton, you fill in the details. Saves you hours of drudgery.
+Automatically inserts Doxygen comment blocks before functions. The Doxygen commands are a template or skeleton, you fill in the details. 
+
+Great for retrofitting Doxygen to big projects. Saves you hours of drudgery.
 
 Requires: Qt 5.12 or later
 
@@ -9,13 +11,13 @@ Requires: Qt 5.12 or later
 
 Ex: 
 
-	int foo(char *bar)
+	int foo(char *bar, int i)
 
 becomes:
 
-
 	/** \brief (You fill in this part)
 	* \param bar (char *)
+	* \param i (int)
 	* \return int
 	* \details 
 	*/
