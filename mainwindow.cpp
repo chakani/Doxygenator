@@ -45,7 +45,7 @@ PREDEFINED             = WIN64 (Copy from Project file)
 
 using namespace std;
 
-bool bDumpClassesFuncs = true;		// for debugging
+bool bDumpClassesFuncs = false;		// for debugging
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -57,7 +57,7 @@ MainWindow::~MainWindow()
 	delete ui;
 }
 
-void xmlAnalyze(QDomDocument &doc);
+void xmlAnalyze(QDomDocument &doc, QString xmlFileName);
 
 //
 /** \brief Processes compounddef.sectiondef.memberdef
@@ -509,6 +509,7 @@ void injectDoxComments(QFile &outputFile, cDoxFunc &funcit)
 	* \param message Completion status; compounded
 	* \return false if error
 	* \details Merge this CPP file's function definition, with all applicable classes
+	* \todo Ignore trailing comment (asterisk - slash)) if it's within a function
 	*/
 bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 {	char buf[2048];
@@ -825,6 +826,7 @@ bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxCl
 		QMessageBox(QMessageBox::Critical, "Error", errorStr).exec();
 		return false;
 	}
+
 	// 'topList' only contains one element, named 'doxygenindex'
 	QDomNodeList topList = doc.elementsByTagName("doxygenindex");
 	for(i = 0; i < topList.size(); i++)
@@ -932,6 +934,8 @@ bool extractCPPlocationFromXML(QString &filesXMLfileName, cDoxEnviron &doxEnviro
 		return false;
 	}
 
+	//xmlAnalyze(doc, filesXMLfileName);
+
 	// 'topList' only contains one element, named "doxygen"
 	QDomNodeList topList = doc.elementsByTagName("doxygen");
 	for(int i = 0; i < topList.size(); i++)
@@ -963,19 +967,200 @@ bool extractCPPlocationFromXML(QString &filesXMLfileName, cDoxEnviron &doxEnviro
 	return true;
 }
 
-void xmlDescribe(QDomNode &node, int level)
-{
+// can't return by reference, steps on toes
+QStringList xmlDescribe(QFile &outFile, const QDomNode &node, int level, QStringList &parents)
+{	QString descHead, descDetail;
+	QString colspan;
+	QStringList recap;
+	bool bBold;
+
+	descHead = descDetail = "<TR>";
+	// insert empty spacer column
+	if(level > 0)
+	{	colspan = QString(" COLSPAN=\"%1\"").arg(level);
+		descHead += "<TH" + colspan + " id=\"clean\"></TH>";
+		descDetail += "<TD" + colspan + " id=\"clean\"></TD>";
+	}
+
+	// node name(s) stack
+	recap = parents;
+	QString thisNodeRecap = node.nodeName();
+	if(node.nodeType() != QDomNode::AttributeNode)
+		thisNodeRecap += QString(" %1").arg(node.lineNumber());
+	recap.push_back(thisNodeRecap);
+	descHead += "<TH>nodeName()</TH>";
+	descDetail += "<TD>";
+	for(int i = 0; i < recap.size(); i++)
+	{	if(i > 0)
+			descDetail += "<BR>";
+		bBold = i == recap.size() - 1;	// bottom of stack
+		if(bBold)
+			descDetail += "<B>";
+		else
+			descDetail += "<I>";
+
+		descDetail += recap[i];
+		if(bBold)
+			descDetail += "</B>";
+		else
+			descDetail += "</I>";
+	}
+	descDetail += "</TD>";
+
+	// node type
+	descHead += "<TH>nodeType()</TH>";
+	descDetail += "<TD>";
+	switch(node.nodeType())
+	{	case QDomNode::ElementNode:
+			descDetail += "ElementNode";
+			break;
+		case QDomNode::AttributeNode:
+			descDetail += "AttributeNode";
+			break;
+		case QDomNode::TextNode:
+			descDetail += "TextNode";
+			break;
+		case QDomNode::CDATASectionNode:
+			descDetail += "CDATASectionNode";
+			break;
+		case QDomNode::EntityReferenceNode:
+			descDetail += "EntityReferenceNode";
+			break;
+		case QDomNode::EntityNode:
+			descDetail += "EntityNode";
+			break;
+		case QDomNode::ProcessingInstructionNode:
+			descDetail += "ProcessingInstructionNode";
+			break;
+		case QDomNode::CommentNode:
+			descDetail += "CommentNode";
+			break;
+		case QDomNode::DocumentNode:
+			descDetail += "DocumentNode";
+			break;
+		case QDomNode::DocumentTypeNode:
+			descDetail += "DocumentTypeNode";
+			break;
+		case QDomNode::DocumentFragmentNode:
+			descDetail += "DocumentFragmentNode";
+			break;
+		case QDomNode::NotationNode:
+			descDetail += "NotationNode";
+			break;
+		case QDomNode::BaseNode:
+			descDetail += "BaseNode";
+			break;
+		case QDomNode::CharacterDataNode:
+			descDetail += "CharacterDataNode";
+			break;
+	}
+	descDetail += "</TD>";
+
+	if(node.nodeType() == QDomNode::ElementNode)
+	{	// node tagName
+		descHead += "<TH>tagName()</TH>";
+		descDetail += "<TD>" + node.toElement().tagName() + "</TD>";
+	}
+	else
+	{	// node value
+		descHead += "<TH>nodeValue()</TH>";
+		descDetail += "<TD>" + node.nodeValue() + "</TD>";
+	}
+
+	// node text
+	QString header, detail;
+	switch(node.nodeType())
+	{	case QDomNode::ElementNode:
+			//header =
+			// spills the entire file for top level
+			//descDetail += node.toElement().text();
+			break;
+		case QDomNode::AttributeNode:
+			break;
+		case QDomNode::TextNode:
+			header = "toText().data()";
+			detail = node.toText().data();
+			break;
+		case QDomNode::CDATASectionNode:
+			header = "text()";
+			detail = node.toElement().text();
+			break;
+		case QDomNode::EntityReferenceNode:
+			break;
+		case QDomNode::EntityNode:
+			break;
+		case QDomNode::ProcessingInstructionNode:
+			break;
+		case QDomNode::CommentNode:
+			break;
+		case QDomNode::DocumentNode:
+			break;
+		case QDomNode::DocumentTypeNode:
+			break;
+		case QDomNode::DocumentFragmentNode:
+			break;
+		case QDomNode::NotationNode:
+			break;
+		case QDomNode::BaseNode:
+			break;
+		case QDomNode::CharacterDataNode:
+			break;
+	}
+
+	if(header.size() > 0)
+	{	descHead += "<TH>" + header;
+		descDetail += "<TD>" + detail;
+		descHead += "</TH>";
+		descDetail += "</TD>";
+	}
+
+	descHead += "</TR>\n";
+	descDetail += "</TR>\n";
+
+	outFile.write(descHead.toLatin1());
+	outFile.write(descDetail.toLatin1());
+	return recap;
 }
 
-void xmlNode(QDomNode &node, int level)
-{
-	xmlDescribe(node, level);
+void xmlNode(QFile &outFile, const QDomNode &node, int level, QStringList &parents)
+{	QStringList recap;
+
+	recap = xmlDescribe(outFile, node, level, parents);
+	if(node.hasAttributes())
+	{	QDomNamedNodeMap nodeMap = node.attributes();
+		for(int i = 0; i <nodeMap.size(); i++)
+			xmlDescribe(outFile, nodeMap.item(i), level, recap);
+	}
+
 	for(QDomNode th_node = node.firstChild(); !th_node.isNull(); th_node = th_node.nextSibling())
-		xmlNode(th_node, level + 1);
+	{	xmlNode(outFile, th_node, level + 1, recap);
+	}
 }
 
-void xmlAnalyze(QDomDocument &doc)
-{
-	QDomNode node = doc.documentElement();
-	xmlNode(node, 0);
+void xmlAnalyze(QDomDocument &doc, QString xmlFileName)
+{	QFile outFile("C:\\temp\\xmlAnalysis.html");
+
+	outFile.open(QIODevice::WriteOnly);
+
+	// header & style
+	outFile.write("<!DOCTYPE html><html><head>\n");
+	outFile.write("<style>\n");
+	outFile.write("th {border: 1px solid black; border-collapse: collapse;"
+		"padding-right:6px; padding-left:6px;  background-color: lightgray; text-align: center;}\n");
+	outFile.write("td {border: 1px solid black; border-collapse: collapse;"
+		"padding-right:2px; padding-left:2px; text-align: center;}\n");
+	outFile.write("#clean {border: 0px; border-collapse: collapse; background-color: white;"
+		"padding-right:2px; padding-left:4px; text-align: center;}\n");
+	outFile.write("table {border-collapse: collapse;"
+		"padding-right:2px; padding-left:2px; text-align: center; margin: 6px; font-family: \"Courier New\";}</style>\n");
+	outFile.write("</head><body>\n");
+
+	outFile.write("<BR>");
+	// toNativeSeparator()
+	outFile.write(xmlFileName.toLatin1());
+	outFile.write("<TABLE>\n");
+	QStringList topParent;
+	xmlNode(outFile, doc.documentElement(), 0, topParent);
+	outFile.write("</TABLE>\n<body>");
+	outFile.close();
 }
