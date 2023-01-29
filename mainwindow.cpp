@@ -5,6 +5,7 @@
 	\li \c QFileInfo https://doc.qt.io/qt-5.15/qfileinfo.html
 	\li \c QDir https://doc.qt.io/qt-6/qdir.html
 	\li \c QDomDocument https://doc.qt.io/qt-5.15/qdomdocument.html
+	\li \c QDomNamedNodeMap https://doc.qt.io/qt-5.15/qdomnamednodemap.html
 	\li \c QFileOpen dialog https://doc.qt.io/qt-6/qfiledialog.html
 	\li \c QProgressDialog https://doc.qt.io/qt-5/qprogressdialog.html
 	\li \c QStatusBar https://doc.qt.io/qt-6/qstatusbar.html
@@ -15,9 +16,6 @@
 
 	Non-breaking space xA0 ' '\n
 
-"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen (file subset).cfg"\n
-"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen.cfg"\n
-"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen.cfg" 1>>C:\temp\doxygen.log 2>>C:\temp\doxygen_errors.log\n
 \verbatim
 VERY IMPORTANT: in Doxygen Config file, must have:\n
 GENERATE_XML           = YES
@@ -25,11 +23,19 @@ FULL_PATH_NAMES        = YES
 STRIP_FROM_PATH        = NO
 STRIP_FROM_INC_PATH    = NO
 EXCLUDE                = *_doxbackup.cpp
-XML_PROGRAMLISTING     = NO
+XML_PROGRAMLISTING     = NO (optional, speeds up processing)
 INCLUDE_PATH = (specify all directories with header files)
 PREDEFINED             = WIN64 (Copy from Project file)
+EXTRACT_PRIVATE        = YES (optional, if you want to document private functions)
+EXTRACT_STATIC         = YES (optional, if you want to document private functions)
 \endverbatim
 	*/
+
+/*
+"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen (file subset).cfg"\n
+"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen.cfg"\n
+"C:\Program Files\doxygen\bin\doxygen.exe" "C:\Progeny\CC_Qt\ChartingCompanion_Doxygen.cfg" 1>>C:\temp\doxygen.log 2>>C:\temp\doxygen_errors.log\n
+*/
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -50,6 +56,9 @@ bool bDumpClassesFuncs = false;		// for debugging
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
 	ui->setupUi(this);
+	bKeepLogs = false;
+	bUpdateSourceFile = true;
+	ui->UpdateSourceFIles->setCheckState(Qt::Checked);
 }
 
 MainWindow::~MainWindow()
@@ -134,6 +143,11 @@ bool memberdef(cDoxEnviron &doxEnviron, std::vector <cDoxFunc> &list, const QDom
 		{	QDomNode bodyfile = locAttribs.namedItem("bodystart");
 			//qDebug() << "\t\t\t\t\t" << bodyfile.nodeName() << bodyfile.nodeValue();
 			wkFunc.bodyStart = bodyfile.nodeValue().toInt();
+		}
+
+		if(locAttribs.contains("bodyend"))
+		{	QDomNode bodyfile = locAttribs.namedItem("bodyend");
+			wkFunc.bodyend = bodyfile.nodeValue().toInt();
 		}
 
 		// compounddef.sectiondef.memberdef.param
@@ -279,7 +293,8 @@ bool fileComp(cDoxIndexEntry elem1, cDoxIndexEntry elem2)
 	* \details Prompts for the Doxygen config file, reads & parses its index.xml file, creates list of all functions and files
 	*/
 bool MainWindow::initialize(cDoxEnviron &doxEnviron)
-{
+{	int totLines = 0, totFuncs = 0, totFiles = 0;
+
 	// get Doxygen config file
 	statusBar()->showMessage("Loading Doxygen config file");
 	if(!getDoxConfig(doxEnviron))
@@ -311,28 +326,31 @@ bool MainWindow::initialize(cDoxEnviron &doxEnviron)
 	progressBar->close();
 	delete progressBar;
 	// dump to debugging file
-	if(bDumpClassesFuncs)
-		dump(doxEnviron.classes, doxEnviron.configFilePath, "classes");
+	dump(doxEnviron.classes, doxEnviron.configFilePath, "classes", QString());
 
 	// load all files to get their absolute location
 	statusBar()->showMessage("Loading Files");
 	progressBar = new QProgressDialog("Loading CPP's XML files...", "Cancel", 0, doxEnviron.doxFileIndex.fileNames.size(), this);
 	progressBar->setWindowModality(Qt::WindowModal);
 	for(xit = doxEnviron.doxFileIndex.fileNames.begin(); xit != doxEnviron.doxFileIndex.fileNames.end(); xit++)
-	{	QString filesFileName = doxEnviron.DoxOutputDirectory + xit->refid + ".xml";
+	{	totFiles++;
+		QString filesFileName = doxEnviron.DoxOutputDirectory + xit->refid + ".xml";
 		QFile filesFile(filesFileName);
 		progressBar->setValue(xit - doxEnviron.doxFileIndex.fileNames.begin());
 		if (progressBar->wasCanceled())
 			break;
 		if(filesFile.exists())
 		{	extractCPPlocationFromXML(filesFileName, doxEnviron, *xit);
+			totFuncs += xit->totFuncs;
+			totLines += xit->totLines;
 		}
 	}
 	if(bDumpClassesFuncs)
 		doxEnviron.doxFileIndex.dump(indexFileName, "list of Files.txt");
 
 	progressBar->setValue(doxEnviron.doxFileIndex.fileNames.size());
-	statusBar()->clearMessage();
+	QString stat = QString("%1 files, %2 functions, %3 total lines").arg(totFiles).arg(totFuncs).arg(totLines);
+	statusBar()->showMessage(stat);
 	return true;
 }
 
@@ -353,6 +371,8 @@ void MainWindow::on_commandLinkButton_clicked()
 		bInitialized = true;
 	}
 
+	doxEnviron.bKeepLogs = bKeepLogs;
+	doxEnviron.bUpdateSourceFile = bUpdateSourceFile;
 	// QSettings file
 	QString m_path = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) ;
 	QString m_filename = "Doxygen_config.ini";
@@ -394,12 +414,13 @@ void MainWindow::on_commandLinkButton_clicked()
 
 			statusBar()->showMessage("Processing " + result.first->name);
 			//statusBar()->update();
+			doxEnviron.funcs.clear();	// not compounding
 			extractXMLfuncs(xmlPath.absoluteFilePath(), doxEnviron, doxEnviron.funcs);
 			std::sort(doxEnviron.funcs.begin(), doxEnviron.funcs.end());
 			// dump to debugging file
-			if(bDumpClassesFuncs)
-				dump(doxEnviron.funcs, doxEnviron.cppFileWithPath, "functions");
-			insertDoxCommands(doxEnviron, message);
+			QString diagFile = dump(doxEnviron.funcs, doxEnviron.cppFileWithPath, "functions", xmlPath.absoluteFilePath());
+			if(insertDoxCommands(doxEnviron, message) && !doxEnviron.bKeepLogs)
+				QFile(diagFile).remove();	// delete - don't need it for diagnostic
 		}
 		else
 		{	QString err = "Error unable to find CPP " + wkFile.name + " in doxFileIndex" ;
@@ -508,7 +529,7 @@ void injectDoxComments(QFile &outputFile, cDoxFunc &funcit)
 	* \param doxEnviron the Dox Environment
 	* \param message Completion status; compounded
 	* \return false if error
-	* \details Merge this CPP file's function definition, with all applicable classes
+	* \details Merge this 'doxEnviron.cppFileWithPath' CPP file's function definition, with all applicable classes
 	* \todo Ignore trailing comment (asterisk - slash)) if it's within a function
 	*/
 bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
@@ -518,6 +539,12 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 	vector <cDoxFunc>::iterator funcit, classit;
 	QString err;
 	int totInjected = 0, reply;
+	bool bRet = true;
+
+	// create diagnostic file
+	QFileInfo cppFileInfo(doxEnviron.cppFileWithPath);
+	QFileInfo diagnosticFileInfo(cppFileInfo.path(), cppFileInfo.completeBaseName() + "_diagnostic.txt");
+	QFile diagnosticFile(diagnosticFileInfo.filePath());
 
 	// check file exists
 	if(!fileCPP.exists())
@@ -532,7 +559,7 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 	QFileInfo fileInfo = QFileInfo(fileCPP);
 	if(fileInfo.lastModified() > xmlFileInfo.lastModified())
 	{	err	= "File " + doxEnviron.xmlCPPfile + " is older than " + doxEnviron.cppFileWithPath
-			+ "\nMay not be compatible";
+			+ "\nMay not be compatible\nClick OK to process anyway, Cancel to skip";
 		qDebug() << err;
 		QMessageBox msg(QMessageBox::Critical, "Error", err, QMessageBox::Ok | QMessageBox::Cancel);
 		if((reply = msg.exec()) == QMessageBox::Cancel)
@@ -546,7 +573,7 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 	if(backupFile.exists())
 		backupFile.remove();
 	if(!fileCPP.copy(backupFileInfo.filePath()))
-	{	err	= "Error cannot backup CPP file " + doxEnviron.cppFileWithPath + backupFileInfo.filePath();
+	{	err	= "Error cannot backup CPP file " + doxEnviron.cppFileWithPath + " to " + backupFileInfo.filePath();
 		qDebug() << err;
 		QMessageBox(QMessageBox::Critical, "Error", err).exec();
 		return false;
@@ -565,30 +592,36 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 	QFileInfo outputFileInfo(fileInfo.path(), fileName + "_doxoutput" + "." + fileInfo.suffix());
 	QFile outputFile(outputFileInfo.filePath());
 	if(!outputFile.open(QIODevice::WriteOnly))
-	{	err = "Error CPP file cannot open output " + outputFileInfo.filePath();
+	{	fileCPP.close();
+		err = "Error CPP file cannot open output " + outputFileInfo.filePath();
 		qDebug() << err;
 		QMessageBox(QMessageBox::Critical, "Error", err).exec();
 		return false;
 	}
 
 	// three-way merge
+	diagnosticFile.open(QIODevice::WriteOnly);
 	cDoxFunc wkFunc;
 	int line = 0, mostRecentComment = -1;
-	if(bDumpClassesFuncs)
+	wkFunc.filePath = doxEnviron.cppFileWithPath;
+	if(diagnosticFile.isOpen())
 	{	if(doxEnviron.funcs.begin() == doxEnviron.funcs.end())
-			qDebug() << "No functions for " << doxEnviron.cppFileWithPath;
-		wkFunc.filePath =doxEnviron.cppFileWithPath;
+		{	QString cppNative = QDir::toNativeSeparators(cppFileInfo.path()) + "\\" + cppFileInfo.fileName();
+			err = "No functions for " + cppNative + "\n";
+			diagnosticFile.write(err.toLatin1());
+		}
 	}
 
 	// search for sub-range of this CPP file in classes
 	pair< vector< cDoxFunc >::iterator, vector< cDoxFunc >::iterator > resultClasses;
 	resultClasses = std::equal_range(doxEnviron.classes.begin(), doxEnviron.classes.end(), wkFunc,
-		funcComp);	// compares file paths
-	if(bDumpClassesFuncs)
+		funcComp);	// compares 'filePath'
+	if(diagnosticFile.isOpen())
 	{	if(resultClasses.first == resultClasses.second)
-			qDebug() << "No class matches for " << wkFunc.filePath;
+			err = "No class matches for " + wkFunc.filePath + "\n";
 		else
-			qDebug() << "Classes range " << resultClasses.first->bodyStart << " to " << (resultClasses.second - 1)->bodyStart;
+			err = QString("Classes range %1 to %2\n").arg(resultClasses.first->bodyStart).arg((resultClasses.second - 1)->bodyStart);
+		diagnosticFile.write(err.toLatin1());
 	}
 	int totClassContrib = resultClasses.second - resultClasses.first;
 	classit = resultClasses.first;
@@ -597,11 +630,12 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 	pair< vector< cDoxFunc >::iterator, vector< cDoxFunc >::iterator > resultFuncs;
 	resultFuncs = std::equal_range(doxEnviron.funcs.begin(), doxEnviron.funcs.end(), wkFunc,
 		funcComp);	// compares file paths
-	if(bDumpClassesFuncs)
+	if(diagnosticFile.isOpen())
 	{	if(resultFuncs.first == resultFuncs.second)
-			qDebug() << "No function matches for" << wkFunc.filePath;
+			err =  "No function matches for" + wkFunc.filePath + "\n";
 		else
-			qDebug() << "Functions range " << resultFuncs.first->bodyStart << " to " << (resultFuncs.second - 1)->bodyStart;
+			err =  QString("Functions range	%1 to %2\n").arg(resultFuncs.first->bodyStart).arg((resultFuncs.second - 1)->bodyStart);
+		diagnosticFile.write(err.toLatin1());
 	}
 	int totFuncContrib = resultFuncs.second - resultFuncs.first;
 	funcit = resultFuncs.first;
@@ -618,8 +652,10 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 		while(funcit != resultFuncs.second && funcit->bodyStart < line)
 			funcit++;
 		if(funcit != resultFuncs.second && line == funcit->bodyStart)
-		{	if(bDumpClassesFuncs)
-				qDebug() << funcit->funcName << "matches at line " << line;
+		{	if(diagnosticFile.isOpen())
+			{	err = QString("matches %1 at line %2\n").arg(funcit->funcName).arg(line);
+				diagnosticFile.write(err.toLatin1());
+			}
 			if(mostRecentComment == -1 || line - mostRecentComment > 3)		// does this func already have a comment block?
 			{	injectDoxComments(outputFile, *funcit);				// if not
 				totInjected++;
@@ -635,9 +671,10 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 		}
 		else if(funcit != resultFuncs.second && line > funcit->bodyStart)
 		{	funcit++;
-			err = "Error function not found " + funcit->funcName + QString("%1").arg(funcit->lineNo);
+			err = "Error function not found " + funcit->funcName + QString("%1\n").arg(funcit->lineNo);
 			qDebug() << err;
 			QMessageBox(QMessageBox::Critical, "Error", err).exec();
+			diagnosticFile.write(err.toLatin1());
 		}
 		outputFile.write(buf);
 	}
@@ -646,28 +683,41 @@ bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message)
 
 	/* change names*/
 	if(totInjected > 0)
-	{	if(!fileCPP.remove())
-		{	err = "Unable to delete old " + doxEnviron.cppFileWithPath;
-			QMessageBox(QMessageBox::Critical, "Error", err).exec();
-			return false;
-		}
+	{	if(doxEnviron.bUpdateSourceFile)
+		{	if(!fileCPP.remove())
+			{	err = "Unable to delete old " + doxEnviron.cppFileWithPath;
+				QMessageBox(QMessageBox::Critical, "Error", err).exec();
+				diagnosticFile.write(err.toLatin1());
+				diagnosticFile.close();
+				return false;
+			}
 
-		if(!outputFile.rename(doxEnviron.cppFileWithPath))
-		{	err = "Unable to rename " + outputFileInfo.filePath() + " to " + doxEnviron.cppFileWithPath;
-			QMessageBox(QMessageBox::Critical, "Error", err).exec();
-			return false;
+			if(!outputFile.rename(doxEnviron.cppFileWithPath))
+			{	err = "Unable to rename " + outputFileInfo.filePath() + " to " + doxEnviron.cppFileWithPath;
+				QMessageBox(QMessageBox::Critical, "Error", err).exec();
+				diagnosticFile.write(err.toLatin1());
+				diagnosticFile.close();
+				return false;
+			}
 		}
 		err = "Successfully converted " + doxEnviron.cppFileWithPath + ": "
 			+ QString("%1 total functions, %2 commented\n").arg(totFuncContrib + totClassContrib).arg(totInjected);
+		diagnosticFile.write(err.toLatin1());
 	}
 	else
-		err = "Nothing converted " + doxEnviron.cppFileWithPath + ": "
+	{	err = "Nothing converted " + doxEnviron.cppFileWithPath + ": "
 			+ QString("%1 total functions, %2 commented\n").arg(totFuncContrib + totClassContrib).arg(totInjected);
+		bRet = false;		// Keep diagnostic file
+		diagnosticFile.write(err.toLatin1());
+	}
 
 	message += err;
 	//QMessageBox(QMessageBox::Information, "Success", err).exec();
 	qDebug() << err;
-	return true;
+	diagnosticFile.close();
+	if(bRet && !doxEnviron.bKeepLogs)	// all OK
+		diagnosticFile.remove();	// clean up
+	return bRet;
 }
 
 /** \brief Prompt for & scan Doxygen cinfiguration file
@@ -743,7 +793,8 @@ bool MainWindow::getDoxConfig(cDoxEnviron &doxEnviron)
 
 	return true;
 }
-
+/** Dump list of Classes & Source Files
+	*/
 void cDoxEnviron::dump(void)
 {	std::vector <cDoxFunc>::iterator funcit;
 	std::vector <cParam>::iterator parmit;
@@ -761,7 +812,10 @@ void cDoxEnviron::dump(void)
 	}
 }
 
-void dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileType)
+/** Dump list of functions for one CPP file
+ *	\returns name of diagnostic file
+ */
+QString dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileType, const QString &xmlFilePath)
 {	QFileInfo cppFileInfo(cppFilePath);
 
 	QFileInfo outputFileInfo(cppFileInfo.path(), cppFileInfo.completeBaseName() + "_" + fileType + ".txt");
@@ -769,12 +823,19 @@ void dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileTyp
 	QFile outputFile(outputFileInfo.filePath());
 	if(outputFile.open(QIODevice::WriteOnly))
 	{	std::vector <cDoxFunc>::iterator fit;
+		// write name of xml file
+		QFileInfo xmlFileInfo(xmlFilePath);
+		QString xmlNative = QDir::toNativeSeparators(xmlFileInfo.path()) + "\\" + xmlFileInfo.fileName();
+		outputFile.write(QString(xmlNative + "\n").toLatin1());
 		for(fit = doxFuncs.begin(); fit != doxFuncs.end(); fit++)
-		{	QString buf = fit->filePath + " " + fit->funcName + " " + QString("%1").arg(fit->bodyStart) + "\n";
+		{	QFileInfo fileInfo(fit->filePath);
+			QString fileNative = QDir::toNativeSeparators(fileInfo.path()) + "\\" + fileInfo.fileName();
+			QString buf =  fileNative + " " + fit->funcName + " " + QString("%1").arg(fit->bodyStart) + "\n";
 			outputFile.write(buf.toLatin1());
 		}
 		outputFile.close();
 	}
+	return outputFileInfo.filePath();
 }
 
 /** \brief Load the Doxygen .index.xml file, containing list of all classes and CPP files
@@ -783,7 +844,7 @@ void dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileTyp
 	* \param doxClassIndex Classes list
 	* \param doxFileIndex File list
 	* \return false if error
-	* \details
+	* \details Creates indices of files and classes
 	* \verbatim
 Classes:
 <doxygenindex ...>
@@ -844,6 +905,14 @@ bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxCl
 				continue;
 			// compound
 			QDomNamedNodeMap attribs = compoundList.at(j).attributes();
+			// compound.name
+			QDomNode nameNode = compoundList.at(j).namedItem("name");
+			if(nameNode.isNull())
+				continue;
+			else
+			{	wkIndexEntry.name = nameNode.toElement().text();
+			}
+
 			if(attribs.contains("kind"))
 			{	QDomNode kind = attribs.namedItem("kind");
 				if(bFullDetailList)
@@ -858,6 +927,7 @@ bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxCl
 			else
 				continue;
 
+			// compound.refid
 			if(attribs.contains("refid"))
 			{	QDomNode refid = attribs.namedItem("refid");
 				if(bFullDetailList)
@@ -866,14 +936,6 @@ bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxCl
 			}
 			else
 				continue;
-
-			// compound.name
-			QDomNode nameNode = compoundList.at(j).namedItem("name");
-			if(nameNode.isNull())
-				continue;
-			else
-			{	wkIndexEntry.name = nameNode.toElement().text();
-			}
 
 			if(compoundKind == CLASS_KIND)
 				doxClassIndex.fileNames.push_back(wkIndexEntry);
@@ -936,20 +998,23 @@ bool extractCPPlocationFromXML(QString &filesXMLfileName, cDoxEnviron &doxEnviro
 
 	//xmlAnalyze(doc, filesXMLfileName);
 
+	// look for doxygen.compounddef.location to get the coresponding XML file (refid + .xml)
 	// 'topList' only contains one element, named "doxygen"
 	QDomNodeList topList = doc.elementsByTagName("doxygen");
 	for(int i = 0; i < topList.size(); i++)
 	{	//QDomNode compoundNode = memberdefNode.namedItem("compounddef");
 
 		QDomNodeList compoundList = topList.at(i).childNodes();
-		for(int j = 0; j < compoundList.size(); j++)
+		for(int j = 0; j < compoundList.size(); j++)	// there's only one
 		{	if(compoundList.at(j).nodeName() != "compounddef")
 				continue;
 			// compounddef
 			// compounddef.location
-			QDomNode compoundnameNode = compoundList.at(j).namedItem("location");
-			if(!compoundnameNode.isNull())
-			{	QDomNamedNodeMap locAttribs = compoundnameNode.attributes();
+			QDomNode locationNode = compoundList.at(j).namedItem("location");
+			if(!locationNode.isNull())
+			{	QDomNamedNodeMap locAttribs = locationNode.attributes();
+				//qDebug() << locAttribs;
+				// compounddef.location.file
 				if(locAttribs.contains("file"))
 				{	QDomNode file = locAttribs.namedItem("file");
 					xit.filePath = file.nodeValue();
@@ -964,10 +1029,38 @@ bool extractCPPlocationFromXML(QString &filesXMLfileName, cDoxEnviron &doxEnviro
 			}
 		}
 	}
+
+	// count functions and lines
+	QDomNodeList memberdefList = doc.elementsByTagName("memberdef");
+	for(int i = 0; i < memberdefList.size(); i++)
+	{	QDomNamedNodeMap memberdefAttribs = memberdefList.at(i).attributes();
+		if(!memberdefAttribs.contains("kind"))
+			continue;
+		QDomNode kindNode = memberdefAttribs.namedItem("kind");
+		if(kindNode.nodeValue() != "function")
+			continue;
+		xit.totFuncs++;
+
+		// get highest line no.
+		// compounddef.sectiondef.memberdef.location
+		QDomNode locationNode = memberdefList.at(i).namedItem("location");
+		if(!locationNode.isNull())
+		{	QDomNamedNodeMap locAttribs = locationNode.attributes();
+			if(locAttribs.contains("bodyend"))
+			{	QDomNode bodyendNode = locAttribs.namedItem("bodyend");
+				int bodyendLine = bodyendNode.nodeValue().toInt();
+				if(bodyendLine > xit.totLines)
+					 xit.totLines = bodyendLine;
+			}
+		}
+	}
+	//qDebug() << filesXMLfileName << xit.totFuncs << xit.totLines;
 	return true;
 }
 
-// can't return by reference, steps on toes
+/** Describe XML node or attribute
+ * \details can't return by reference, steps on toes
+ */
 QStringList xmlDescribe(QFile &outFile, const QDomNode &node, int level, QStringList &parents)
 {	QString descHead, descDetail;
 	QString colspan;
@@ -1122,6 +1215,8 @@ QStringList xmlDescribe(QFile &outFile, const QDomNode &node, int level, QString
 	return recap;
 }
 
+/** Crawl recursively through XML tree
+ */
 void xmlNode(QFile &outFile, const QDomNode &node, int level, QStringList &parents)
 {	QStringList recap;
 
@@ -1137,6 +1232,8 @@ void xmlNode(QFile &outFile, const QDomNode &node, int level, QStringList &paren
 	}
 }
 
+/** for learning and diagnostic purposes
+ */
 void xmlAnalyze(QDomDocument &doc, QString xmlFileName)
 {	QFile outFile("C:\\temp\\xmlAnalysis.html");
 
@@ -1156,11 +1253,22 @@ void xmlAnalyze(QDomDocument &doc, QString xmlFileName)
 	outFile.write("</head><body>\n");
 
 	outFile.write("<BR>");
-	// toNativeSeparator()
-	outFile.write(xmlFileName.toLatin1());
+	QFileInfo xmlFileInfo(xmlFileName);
+	QString xmlNative = QDir::toNativeSeparators(xmlFileInfo.path()) + xmlFileInfo.fileName();
+	outFile.write(xmlNative.toLatin1());
 	outFile.write("<TABLE>\n");
 	QStringList topParent;
 	xmlNode(outFile, doc.documentElement(), 0, topParent);
 	outFile.write("</TABLE>\n<body>");
 	outFile.close();
+}
+
+void MainWindow::on_keepLogFIles_clicked()
+{
+	bKeepLogs = !bKeepLogs;
+}
+
+void MainWindow::on_UpdateSourceFIles_stateChanged(int arg1)
+{
+    bUpdateSourceFile = arg1 != 0 ? true : false;
 }

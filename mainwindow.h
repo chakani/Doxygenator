@@ -22,12 +22,13 @@ class cDoxFunc
 		ref;
 	std::vector <cParam> params;
 	int lineNo,			// reference or prototype
-		bodyStart;		// actual definition line
+		bodyStart,		// actual definition line
+		bodyend;		// can be -1
 	void reset(void)
 	{	// do not reset 'filePath', saved in extractXMLfuncs() and passed to memberdef()
 		funcName = type = ref = "";
 		params.clear();
-		lineNo = -1;
+		lineNo = bodyStart = bodyend =  -1;
 	}
 	bool operator <(cDoxFunc &oth)
 	{	if(filePath.toUpper() < oth.filePath.toUpper())
@@ -46,8 +47,12 @@ class cDoxIndexEntry
 							// for class, just class name, no suffix
 		filePath,			// complete dir + fname (for Files only, not classes)
 		refid;			// file name in Dox Output directory, without '.xml' suffix
+	int totFuncs, totLines;
 	bool operator <(cDoxIndexEntry &oth)
 	{	return name.toUpper() < oth.name.toUpper();
+	}
+	cDoxIndexEntry()
+	{	totFuncs = totLines = 0;
 	}
 };
 
@@ -67,6 +72,7 @@ class cDoxEnviron
 		configFilePath, configFileDir;
 	std::vector <cDoxFunc> funcs, classes;	// sort classes by filePath & line no.
 	cDoxIndex doxClassIndex, doxFileIndex;
+	bool bKeepLogs, bUpdateSourceFile;
 
 	void dump(void);
 	void dump(std::vector <cDoxFunc> &, QFileInfo &outputFileInfo);
@@ -88,14 +94,20 @@ public:
 	explicit MainWindow(QWidget *parent = nullptr);
 	~MainWindow();
 	bool getDoxConfig(cDoxEnviron &doxFile);
+	bool bKeepLogs,				// keep _functions.txt and _diagnostics.txt for debugging
+		bUpdateSourceFile;		// overwrite original source file
 
 private slots:
 	void on_commandLinkButton_clicked();
 	bool initialize(cDoxEnviron &doxFile);
+	void on_keepLogFIles_clicked();
+
+	void on_UpdateSourceFIles_stateChanged(int arg1);
+
 private:
 	Ui::MainWindow *ui;
 };
-void dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileType);
+QString dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileType, const QString &xmlFilePath);
 bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message);
 void getDoxConfig(cDoxEnviron &doxEnviron);
 bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxClassIndex, cDoxIndex &doxFileIndex);
