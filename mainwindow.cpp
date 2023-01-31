@@ -1277,6 +1277,6 @@ void MainWindow::on_UpdateSourceFIles_stateChanged(int arg1)
     bUpdateSourceFile = arg1 != 0 ? true : false;
 }
 
-void cDoxEnviron::foo(void)
+void cDoxEnviron::privateFunc1(void)
 {
 }
