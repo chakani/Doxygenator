@@ -63,7 +63,12 @@ class cDoxIndex
 };
 
 class cDoxEnviron
-{	public:
+{	protected:
+		void privateFunc1(void);
+		void privateFunc2(void)
+		{
+		}
+	public:
 	QString cppFileWithPath,			// includes path "C:\Progeny\sandbox\pg087.cpp"
 		cppFileNameOnly,			// "PG087.CPP"
 		baseDirectory,			// includes trailing backslash

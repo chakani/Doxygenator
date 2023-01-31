@@ -48,6 +48,7 @@ EXTRACT_STATIC         = YES (optional, if you want to document private function
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QDateTime>
+#include <QLocale>
 
 using namespace std;
 
@@ -349,7 +350,10 @@ bool MainWindow::initialize(cDoxEnviron &doxEnviron)
 		doxEnviron.doxFileIndex.dump(indexFileName, "list of Files.txt");
 
 	progressBar->setValue(doxEnviron.doxFileIndex.fileNames.size());
-	QString stat = QString("%1 files, %2 functions, %3 total lines").arg(totFiles).arg(totFuncs).arg(totLines);
+	QString totFilesStr = QLocale(QLocale::English).toString(totFiles);
+	QString totFuncsStr = QLocale(QLocale::English).toString(totFuncs);
+	QString totLinesStr = QLocale(QLocale::English).toString(totLines);
+	QString stat = QString("%1 files, %2 functions, %3 total lines").arg(totFilesStr).arg(totFuncsStr).arg(totLinesStr);
 	statusBar()->showMessage(stat);
 	return true;
 }
@@ -1271,4 +1275,8 @@ void MainWindow::on_keepLogFIles_clicked()
 void MainWindow::on_UpdateSourceFIles_stateChanged(int arg1)
 {
     bUpdateSourceFile = arg1 != 0 ? true : false;
+}
+
+void cDoxEnviron::foo(void)
+{
 }
