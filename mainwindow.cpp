@@ -54,6 +54,11 @@ using namespace std;
 
 bool bDumpClassesFuncs = false;		// for debugging
 
+/** \brief 
+	* \param parent (QWidget *)  
+	* \return  
+	* \details 
+	*/
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
 	ui->setupUi(this);
@@ -62,6 +67,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	ui->UpdateSourceFIles->setCheckState(Qt::Checked);
 }
 
+/** \brief 
+	* \return  
+	* \details 
+	*/
 MainWindow::~MainWindow()
 {
 	delete ui;
@@ -87,7 +96,7 @@ bool memberdef(cDoxEnviron &doxEnviron, std::vector <cDoxFunc> &list, const QDom
 	{	QDomNode kind = attribs.namedItem("kind");
 		if(bFullDetailList)
 			qDebug() << "\t\t\t\t\t" << kind.nodeName() << kind.nodeValue();
-		if(kind.nodeValue() != "function")
+		if(!(kind.nodeValue() == "function" || kind.nodeValue() == "slot"))
 			return false;
 		// we got a live one
 		wkFunc.reset();
@@ -258,7 +267,8 @@ bool extractXMLfuncs(const QString xmlFileName, cDoxEnviron &doxEnviron, std::ve
 				{	QDomNode kind = attribs.namedItem("kind");
 					if(bFullDetailList)
 						qDebug() << "\t\t\t" << kind.nodeName() << kind.nodeValue();
-					if(kind.nodeValue() != "func" && kind.nodeValue() != "public-func")
+					if(!(kind.nodeValue() == "func" && kind.nodeValue() == "public-func" || kind.nodeValue() == "private-slot"
+					|| kind.nodeValue() == "protected-func" || kind.nodeValue() == "private-func"))
 						continue;
 					QDomNodeList memberList = sectionList.at(k).childNodes();
 					for(m = 0; m < memberList.size(); m++)
@@ -358,21 +368,21 @@ bool MainWindow::initialize(cDoxEnviron &doxEnviron)
 	return true;
 }
 
+cDoxEnviron doxEnviron;
+
 /** \brief main entry point
 	* \details
 	*/
 void MainWindow::on_commandLinkButton_clicked()
-{	static cDoxEnviron doxEnviron, classes;
-	QSettings *settings;
+{	QSettings *settings;
 	QString dirName, err, message;
 	QStringList qstrDir = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
-	static bool bInitialized = false;
 
 	statusBar()->clearMessage();
-	if(!bInitialized)
+	if(!doxEnviron.bInitialized)
 	{	if(!initialize(doxEnviron))
 			return;
-		bInitialized = true;
+		doxEnviron.bInitialized = true;
 	}
 
 	doxEnviron.bKeepLogs = bKeepLogs;
@@ -480,6 +490,12 @@ QString alphaType(const QString type)
 
 }
 
+/** \brief 
+	* \param elem1 (cDoxFunc)  
+	* \param elem2 (cDoxFunc)  
+	* \return bool 
+	* \details 
+	*/
 bool funcComp(cDoxFunc elem1, cDoxFunc elem2)
 {	return elem1.filePath.toUpper() < elem2.filePath.toUpper();
 }
@@ -955,6 +971,11 @@ bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxCl
 	return true;
 }
 
+/** \brief 
+	* \param indexFileName (const QString &)  
+	* \param fname (const QString)  
+	* \details 
+	*/
 void cDoxIndex::dump(const QString &indexFileName, const QString fname)
 {	std::vector <cDoxIndexEntry>::iterator iit;
 
@@ -1041,7 +1062,7 @@ bool extractCPPlocationFromXML(QString &filesXMLfileName, cDoxEnviron &doxEnviro
 		if(!memberdefAttribs.contains("kind"))
 			continue;
 		QDomNode kindNode = memberdefAttribs.namedItem("kind");
-		if(kindNode.nodeValue() != "function")
+		if(!(kindNode.nodeValue() == "function" || kindNode.nodeValue() == "slot"))
 			continue;
 		xit.totFuncs++;
 
@@ -1279,4 +1300,18 @@ void MainWindow::on_UpdateSourceFIles_stateChanged(int arg1)
 
 void cDoxEnviron::privateFunc1(void)
 {
+}
+
+void MainWindow::on_SearchForCommentsMissing_clicked()
+{
+	if(!doxEnviron.bInitialized)
+	{	if(!initialize(doxEnviron))
+			return;
+		doxEnviron.bInitialized = true;
+	}
+	// examine every .CPP file
+	std::vector <cDoxIndexEntry>::iterator filit;
+	for(filit = doxEnviron.doxFileIndex.fileNames.begin(); filit != doxEnviron.doxFileIndex.fileNames.end(); filit++)
+	{
+	}
 }
