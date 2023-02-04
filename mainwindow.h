@@ -77,13 +77,16 @@ class cDoxEnviron
 		configFilePath, configFileDir;
 	std::vector <cDoxFunc> funcs, classes;	// sort classes by filePath & line no.
 	cDoxIndex doxClassIndex, doxFileIndex;
-	bool bKeepLogs, bUpdateSourceFile;
+	bool bKeepLogs, bUpdateSourceFile, bInitialized;
 
 	void dump(void);
 	void dump(std::vector <cDoxFunc> &, QFileInfo &outputFileInfo);
 	void reset(void)
 	{	funcs.clear();
 		cppFileWithPath.clear(), cppFileNameOnly.clear();
+	}
+	cDoxEnviron()
+	{	bInitialized = false;
 	}
 };
 
@@ -106,14 +109,14 @@ private slots:
 	void on_commandLinkButton_clicked();
 	bool initialize(cDoxEnviron &doxFile);
 	void on_keepLogFIles_clicked();
-
 	void on_UpdateSourceFIles_stateChanged(int arg1);
+	void on_SearchForCommentsMissing_clicked();
 
 private:
 	Ui::MainWindow *ui;
 };
 QString dump(std::vector <cDoxFunc> &doxFuncs, QString cppFilePath, QString fileType, const QString &xmlFilePath);
-bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message);
+bool insertDoxCommands(cDoxEnviron &doxEnviron, QString &message, QFile &diagnosticFile);
 void getDoxConfig(cDoxEnviron &doxEnviron);
 bool loadIndex(MainWindow *window, const QString indexFileName, cDoxIndex &doxClassIndex, cDoxIndex &doxFileIndex);
 bool extractCPPlocationFromXML(QString &filesCPPfileName, cDoxEnviron &doxEnviron, cDoxIndexEntry &xit);
